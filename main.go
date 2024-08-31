@@ -2,12 +2,13 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"github.com/imroc/req/v3"
+	"github.com/sfomuseum/go-exif-update"
 	"io"
 	"net/http"
 	"os"
-	"slices"
 	"strings"
 	"time"
 )
@@ -52,12 +53,19 @@ type MovieInfo struct {
 	Data      MovieData      `json:"data"`
 }
 
-const token = "Bearer eyJhbGciOiJIUzUxMiJ9.eyJ3ZWJfbG9naW5fdXNlcl9rZXkiOiJjNDRjNWRhMS05NzE0LTQ1NjEtYTJlYS0yODhmZjBjOTRmMmMifQ.OmiluPuau4fC7PPzf61uReRWvawZuDwC1hSfWqrxFfoeV-R_uueOtpQdhcLelB4wqH220Q93cy-GoOeg2Y7e0Q"
-const performerId = 4429331561381959
-const performerName = "lala"
+// token认证
+var token = "Bearer eyJhbGciOiJIUzUxMiJ9.eyJ3ZWJfbG9naW5fdXNlcl9rZXkiOiIzMmMzOTIwZS1hZTQ0LTQ1ZDUtODU5ZC0zZDk4NDczNjUwZDQifQ.qA_KQ6IYcaPJ8QkIJNb0wmNsVPtO9PpOy72fXQnZK-W1xVmebLhRTVG6QBAL3V76KvIO-_O-Wy4cl6Z5W9IggA"
 
-var allDownloadLink = ""
+// 演员ID
+var performerId int64 = 4421250301886541
 
+// 截至日期
+var dealLine = "2024-07-21"
+
+// 下载目录
+var photoDir = "D:\\jav"
+
+// 获取列表
 func getPageList(pageNum int) ([]PageInfo, error) {
 	url := fmt.Sprintf("https://www.11jav.xyz/prod-api/api/censored/list?performerId=%d&pageNum=%d&pageSize=48&sort=pubTime&modName=censored", performerId, pageNum)
 	request, err := http.NewRequest("GET", url, nil)
@@ -65,8 +73,6 @@ func getPageList(pageNum int) ([]PageInfo, error) {
 		fmt.Println("get请求失败：", err)
 		panic(err)
 	}
-	//request.Header.Add("Rsa", "o/YRVRGI9HoVG+q216Z0aLp9hfFMxtv/3E0Dyn+o1WuOET/5/frs2qMZFsuuuK1+bzZmshCTrJQ6V5UZd+TJgA==")
-	//request.Header.Add("Timestamp", "1723084531285")
 
 	request.Header.Add("authorization", token)
 
@@ -95,6 +101,7 @@ func getPageList(pageNum int) ([]PageInfo, error) {
 	return pageListResult.PageInfo, nil
 }
 
+// 获取影片信息
 func getMovieInfo(censoredId int64) (*MovieInfo, error) {
 	url := fmt.Sprintf("https://www.11jav.xyz/prod-api/api/censored/%d", censoredId)
 	request, err := http.NewRequest("GET", url, nil)
@@ -129,8 +136,9 @@ func getMovieInfo(censoredId int64) (*MovieInfo, error) {
 	return &movieInfo, nil
 }
 
-func GetDownloadLink(pageInfo PageInfo) {
-	url := fmt.Sprintf("https://www.11jav.xyz/prod-api/web/search/list?pageSize=48&pageNum=1&order=dht&data=0&keyword=%s&category=video", pageInfo.Number)
+// GetDownloadLink 获取下载链接
+func GetDownloadLink(number string, filePath string) {
+	url := fmt.Sprintf("https://www.11jav.xyz/prod-api/web/search/list?pageSize=48&pageNum=1&order=dht&data=0&keyword=%s&category=video", number)
 	request, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		fmt.Println("get请求失败：", err)
@@ -164,11 +172,44 @@ func GetDownloadLink(pageInfo PageInfo) {
 					maxLinkInfo = row
 				}
 			}
-			allDownloadLink = fmt.Sprintf("%s\n%s %s magnet:?xt=urn:btih:%s", allDownloadLink, pageInfo.PubTime, pageInfo.Number, maxLinkInfo.InfoHash)
+			downloadUrl := fmt.Sprintf("magnet:?xt=urn:btih:%s", maxLinkInfo.InfoHash)
+
+			writePhotoDownloadLink(downloadUrl, filePath)
 		}
 	}
 }
 
+func writePhotoDownloadLink(downloadLink string, filePath string) {
+	exifProps := map[string]interface{}{
+		"Artist": downloadLink,
+	}
+
+	source, _ := os.Open(filePath)
+	defer source.Close()
+	bakFilePath := fmt.Sprintf("%s.bak", filePath)
+	out, _ := os.Create(bakFilePath)
+	defer out.Close()
+
+	err := update.PrepareAndUpdateExif(source, out, exifProps)
+	if err != nil {
+		return
+	} else {
+		go func() {
+			time.Sleep(3 * time.Second)
+			err = os.Remove(filePath)
+			if err != nil {
+				return
+			}
+
+			err = os.Rename(bakFilePath, filePath)
+			if err != nil {
+				return
+			}
+		}()
+	}
+}
+
+// DownloadPhoto 下载图片
 func DownloadPhoto(pageInfoList []PageInfo) []PageInfo {
 	var unPageInfoList []PageInfo
 
@@ -177,19 +218,19 @@ func DownloadPhoto(pageInfoList []PageInfo) []PageInfo {
 		movieInfo, _ := getMovieInfo(pageInfo.CensoredId)
 
 		if len(movieInfo.Performer) == 1 {
-			GetDownloadLink(pageInfo)
 			photoUrl := fmt.Sprintf("https://images.ssssjav.com%s", pageInfo.PicBig)
 			if strings.HasPrefix(pageInfo.PicBig, "http") {
 				photoUrl = pageInfo.PicBig
 			}
-			pathName := fmt.Sprintf("D:\\%s\\%s-%s.jpg", performerName, pageInfo.PubTime, pageInfo.Number)
+			pathName := fmt.Sprintf("%s\\%s-%s.jpg", photoDir, pageInfo.PubTime, pageInfo.Number)
 
 			client := req.C()
 			if _, err := client.R().SetOutputFile(pathName).Get(photoUrl); err != nil {
 				fmt.Printf("\nF-%s-%d-%s-%d", pageInfo.Number, pageInfo.CensoredId, pageInfo.PicBig, len(movieInfo.Performer))
-				//unPageInfoList = append(unPageInfoList, pageInfo)
+			} else {
+				fmt.Printf("\n%s-%s", pageInfo.PubTime, pageInfo.Number)
+				GetDownloadLink(pageInfo.Number, pathName)
 			}
-			//		response, err := client.R().SetFile("file", PathName).Post("https://canting.yunshanhu.showye.tech/api/upload/image")
 		} else if len(movieInfo.Performer) == 0 {
 			unPageInfoList = append(unPageInfoList, pageInfo)
 		}
@@ -202,9 +243,20 @@ func DownloadPhoto(pageInfoList []PageInfo) []PageInfo {
 }
 
 func main() {
+	flag.StringVar(&token, "token", "Bearer eyJhbGciOiJIUzUxMiJ9.eyJ3ZWJfbG9naW5fdXNlcl9rZXkiOiIzMmMzOTIwZS1hZTQ0LTQ1ZDUtODU5ZC0zZDk4NDczNjUwZDQifQ.qA_KQ6IYcaPJ8QkIJNb0wmNsVPtO9PpOy72fXQnZK-W1xVmebLhRTVG6QBAL3V76KvIO-_O-Wy4cl6Z5W9IggA", "login token")
+	// 演员ID
+	flag.Int64Var(&performerId, "performerId", 4421250301886541, "actress id")
+	// 截至日期
+	flag.StringVar(&dealLine, "date", "2024-07-21", "dead-line")
+	// 下载目录
+	flag.StringVar(&photoDir, "photoDir", "D:\\jav", "photo dir")
+	flag.Parse()
+
 	pageNumber := 1
 
 	var pageInfoList []PageInfo
+
+	isDeadLine := false
 
 	for {
 		pageList, err := getPageList(pageNumber)
@@ -213,7 +265,19 @@ func main() {
 		}
 
 		if len(pageList) > 0 {
-			pageInfoList = slices.Concat(pageInfoList, pageList)
+			for _, pageInfo := range pageList {
+				pubDate, pubErr := time.Parse("2006-01-02", pageInfo.PubTime)
+				dealLineDate, deadLineErr := time.Parse("2006-01-02", dealLine)
+				if pubErr != nil || deadLineErr != nil || pubDate.Before(dealLineDate) {
+					isDeadLine = true
+					break
+				}
+				pageInfoList = append(pageInfoList, pageInfo)
+			}
+		}
+
+		if isDeadLine {
+			break
 		}
 
 		if len(pageList) < 48 {
@@ -233,17 +297,6 @@ func main() {
 			pageInfoList = unPageInfoList
 		} else {
 			fmt.Printf("\nall download end")
-
-			if len(allDownloadLink) > 0 {
-				pathName := fmt.Sprintf("D:\\%s\\%s.txt", performerName, performerName)
-
-				f, _ := os.Create(pathName)
-				defer f.Close()
-
-				_, _ = f.WriteString(allDownloadLink) //写入文件(字节数组)
-				_ = f.Sync()
-			}
-
 			break
 		}
 	}
