@@ -2,9 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
-	"github.com/imroc/req/v3"
 	"github.com/sfomuseum/go-exif-update"
 	"io"
 	"net/http"
@@ -67,7 +67,7 @@ var photoDir = "D:\\jav"
 
 // 获取列表
 func getPageList(pageNum int) ([]PageInfo, error) {
-	url := fmt.Sprintf("https://www.11jav.xyz/prod-api/api/censored/list?performerId=%d&pageNum=%d&pageSize=48&sort=pubTime&modName=censored", performerId, pageNum)
+	url := fmt.Sprintf("https://www.11jav.xyz/prod-api/api/censored/list?performerId=%d&pageNum=%d&pageSize=48&sort=pubTime", performerId, pageNum)
 	request, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		fmt.Println("get请求失败：", err)
@@ -190,23 +190,34 @@ func writePhotoDownloadLink(downloadLink string, filePath string) {
 	out, _ := os.Create(bakFilePath)
 	defer out.Close()
 
-	err := update.PrepareAndUpdateExif(source, out, exifProps)
-	if err != nil {
-		return
-	} else {
-		go func() {
-			time.Sleep(3 * time.Second)
-			err = os.Remove(filePath)
-			if err != nil {
-				return
-			}
+	_ = update.PrepareAndUpdateExif(source, out, exifProps)
+}
 
-			err = os.Rename(bakFilePath, filePath)
-			if err != nil {
-				return
-			}
-		}()
+// DownloadFile 文件下载
+func DownloadFile(url string, filePath string) error {
+	res, err := http.Get(url)
+	if err != nil {
+		return nil
 	}
+	if res == nil {
+		return errors.New("response is nil")
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return errors.New("response is error")
+	}
+
+	f, err := os.Create(filePath)
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(f, res.Body)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // DownloadPhoto 下载图片
@@ -218,15 +229,23 @@ func DownloadPhoto(pageInfoList []PageInfo) []PageInfo {
 		movieInfo, _ := getMovieInfo(pageInfo.CensoredId)
 
 		if len(movieInfo.Performer) == 1 {
-			photoUrl := fmt.Sprintf("https://images.ssssjav.com%s", pageInfo.PicBig)
-			if strings.HasPrefix(pageInfo.PicBig, "http") {
-				photoUrl = pageInfo.PicBig
-			}
 			pathName := fmt.Sprintf("%s\\%s-%s.jpg", photoDir, pageInfo.PubTime, pageInfo.Number)
+			//client := req.C()
 
-			client := req.C()
-			if _, err := client.R().SetOutputFile(pathName).Get(photoUrl); err != nil {
-				fmt.Printf("\nF-%s-%d-%s-%d", pageInfo.Number, pageInfo.CensoredId, pageInfo.PicBig, len(movieInfo.Performer))
+			missUrl := fmt.Sprintf("https://fivetiu.com/%s/cover-n.jpg", pageInfo.Number)
+			missUrl = strings.ToLower(missUrl)
+			if missErr := DownloadFile(missUrl, pathName); missErr != nil {
+				photoUrl := fmt.Sprintf("https://images.ssssjav.com%s", pageInfo.PicBig)
+				photoUrl = strings.ToLower(photoUrl)
+				if strings.HasPrefix(pageInfo.PicBig, "http") {
+					photoUrl = pageInfo.PicBig
+				}
+				if javErr := DownloadFile(photoUrl, pathName); javErr != nil {
+					fmt.Printf("\nF-%s-%d-%s-%d", pageInfo.Number, pageInfo.CensoredId, pageInfo.PicBig, len(movieInfo.Performer))
+				} else {
+					fmt.Printf("\n%s-%s", pageInfo.PubTime, pageInfo.Number)
+					GetDownloadLink(pageInfo.Number, pathName)
+				}
 			} else {
 				fmt.Printf("\n%s-%s", pageInfo.PubTime, pageInfo.Number)
 				GetDownloadLink(pageInfo.Number, pathName)
@@ -234,9 +253,6 @@ func DownloadPhoto(pageInfoList []PageInfo) []PageInfo {
 		} else if len(movieInfo.Performer) == 0 {
 			unPageInfoList = append(unPageInfoList, pageInfo)
 		}
-		//else {
-		//	fmt.Printf("\nM-%s-%d-%s-%d", pageInfo.Number, pageInfo.CensoredId, pageInfo.PicBig, len(movieInfo.Performer))
-		//}
 	}
 
 	return unPageInfoList
@@ -245,11 +261,11 @@ func DownloadPhoto(pageInfoList []PageInfo) []PageInfo {
 func main() {
 	flag.StringVar(&token, "token", "Bearer eyJhbGciOiJIUzUxMiJ9.eyJ3ZWJfbG9naW5fdXNlcl9rZXkiOiIzMmMzOTIwZS1hZTQ0LTQ1ZDUtODU5ZC0zZDk4NDczNjUwZDQifQ.qA_KQ6IYcaPJ8QkIJNb0wmNsVPtO9PpOy72fXQnZK-W1xVmebLhRTVG6QBAL3V76KvIO-_O-Wy4cl6Z5W9IggA", "login token")
 	// 演员ID
-	flag.Int64Var(&performerId, "performerId", 4421250301886541, "actress id")
+	flag.Int64Var(&performerId, "performerId", 9503749401935941, "actress id")
 	// 截至日期
-	flag.StringVar(&dealLine, "date", "2024-07-21", "dead-line")
+	flag.StringVar(&dealLine, "date", "2000-01-01", "dead-line")
 	// 下载目录
-	flag.StringVar(&photoDir, "photoDir", "D:\\jav", "photo dir")
+	flag.StringVar(&photoDir, "photoDir", "C:\\jav", "photo dir")
 	flag.Parse()
 
 	pageNumber := 1
@@ -292,6 +308,22 @@ func main() {
 
 	for {
 		unPageInfoList := DownloadPhoto(pageInfoList)
+
+		for _, pageInfo := range pageInfoList {
+			pathName := fmt.Sprintf("%s\\%s-%s.jpg", photoDir, pageInfo.PubTime, pageInfo.Number)
+			bakFileName := fmt.Sprintf("%s.bak", pathName)
+			file, err := os.Stat(bakFileName)
+			if file != nil && err == nil {
+				removeErr := os.Remove(pathName)
+				if removeErr != nil {
+					fmt.Println(removeErr)
+				}
+				RenameErr := os.Rename(bakFileName, pathName)
+				if RenameErr != nil {
+					fmt.Println(RenameErr)
+				}
+			}
+		}
 
 		if len(unPageInfoList) > 0 {
 			pageInfoList = unPageInfoList
