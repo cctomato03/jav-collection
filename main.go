@@ -309,6 +309,7 @@ func main() {
 	for {
 		unPageInfoList := DownloadPhoto(pageInfoList)
 
+		time.Sleep(10 * time.Second)
 		for _, pageInfo := range pageInfoList {
 			pathName := fmt.Sprintf("%s\\%s-%s.jpg", photoDir, pageInfo.PubTime, pageInfo.Number)
 			bakFileName := fmt.Sprintf("%s.bak", pathName)
