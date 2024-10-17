@@ -9,13 +9,14 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
 
 type LinkInfo struct {
-	InfoHash string `json:"infoHash"`
-	Length   int64  `json:"length"`
+	InfoHash string      `json:"infoHash"`
+	Length   interface{} `json:"length"`
 }
 
 type DownloadLinkInfo struct {
@@ -136,6 +137,22 @@ func getMovieInfo(censoredId string) (*MovieInfo, error) {
 	return &movieInfo, nil
 }
 
+func ConvertToInt64(source interface{}) int64 {
+	switch source.(type) {
+	case string:
+		number, _ := strconv.ParseInt(source.(string), 10, 64)
+		return number
+	case int:
+		return source.(int64)
+	case int32:
+		return source.(int64)
+	case int64:
+		return source.(int64)
+	default:
+		return 0
+	}
+}
+
 // GetDownloadLink 获取下载链接
 func GetDownloadLink(number string, filePath string) {
 	url := fmt.Sprintf("https://www.11jav.xyz/prod-api/web/search/list?pageSize=48&pageNum=1&order=dht&data=0&keyword=%s&category=video", number)
@@ -168,7 +185,7 @@ func GetDownloadLink(number string, filePath string) {
 		if len(downloadLinkInfo.Rows) > 0 {
 			maxLinkInfo := downloadLinkInfo.Rows[0]
 			for _, row := range downloadLinkInfo.Rows {
-				if maxLinkInfo.Length < row.Length {
+				if ConvertToInt64(maxLinkInfo.Length) < ConvertToInt64(row.Length) {
 					maxLinkInfo = row
 				}
 			}
@@ -176,6 +193,8 @@ func GetDownloadLink(number string, filePath string) {
 
 			writePhotoDownloadLink(downloadUrl, filePath)
 		}
+	} else {
+		fmt.Println(errs)
 	}
 }
 
