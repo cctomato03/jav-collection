@@ -1,1 +1,1 @@
-.\main.exe -performerId 4431902952325190 -date 2000-01-01 -photoDir "C:\jav" -token "Bearer eyJhbGciOiJIUzUxMiJ9.eyJ3ZWJfbG9naW5fdXNlcl9rZXkiOiIyZjNiM2JiNS1kODdmLTQ5MTAtODg4Ny1iNjVjMDlkN2RkYTEifQ.aO41cfODu2F_451_mgYnEnMmfLkn8nI873HjtxG_ebPoYDKOVw3CaWiFjWW_Yq18nmedoNbM-kClE_pgUFSJTw"
+.\main.exe -performerId 4429250322694214 -date 2000-01-01 -photoDir "C:\jav" -token "Bearer eyJhbGciOiJIUzUxMiJ9.eyJ3ZWJfbG9naW5fdXNlcl9rZXkiOiJhNDJiMjJjMC03OTRhLTQzOWYtOWJiZC1hMjY4MTNlZGU3ZGYifQ.dWShekEI9q6THolv2eUpXOXUuaZ0_EP0xP210k5-YhNfDMiWJwT_6N5sSHm7mCMy_8UQ0b2lWwTCLMEImd-apg"

@@ -28,7 +28,7 @@ type PageListResult struct {
 }
 
 type PageInfo struct {
-	CensoredId int64  `json:"censoredId"`
+	CensoredId string `json:"censoredId"`
 	Number     string `json:"number"`
 	PicBig     string `json:"picBig"`
 	PubTime    string `json:"pubTime"`
@@ -37,13 +37,13 @@ type PageInfo struct {
 }
 
 type MovieActress struct {
-	PerformerId     int64  `json:"performerId"`
+	PerformerId     string `json:"performerId"`
 	PerformerCnName string `json:"performerCnName"`
 	PerformerAvatar string `json:"performerAvatar"`
 }
 
 type MovieData struct {
-	CensoredId int64  `json:"censoredId"`
+	CensoredId string `json:"censoredId"`
 	PicBig     string `json:"picBig"`
 	Number     string `json:"number"`
 }
@@ -57,7 +57,7 @@ type MovieInfo struct {
 var token = "Bearer eyJhbGciOiJIUzUxMiJ9.eyJ3ZWJfbG9naW5fdXNlcl9rZXkiOiIzMmMzOTIwZS1hZTQ0LTQ1ZDUtODU5ZC0zZDk4NDczNjUwZDQifQ.qA_KQ6IYcaPJ8QkIJNb0wmNsVPtO9PpOy72fXQnZK-W1xVmebLhRTVG6QBAL3V76KvIO-_O-Wy4cl6Z5W9IggA"
 
 // 演员ID
-var performerId int64 = 4421250301886541
+var performerId string = "4421250301886541"
 
 // 截至日期
 var dealLine = "2024-07-21"
@@ -67,7 +67,7 @@ var photoDir = "D:\\jav"
 
 // 获取列表
 func getPageList(pageNum int) ([]PageInfo, error) {
-	url := fmt.Sprintf("https://www.11jav.xyz/prod-api/api/censored/list?performerId=%d&pageNum=%d&pageSize=48&sort=pubTime", performerId, pageNum)
+	url := fmt.Sprintf("https://www.11jav.xyz/prod-api/api/censored/list?performerId=%s&pageNum=%d&pageSize=48&sort=pubTime", performerId, pageNum)
 	request, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		fmt.Println("get请求失败：", err)
@@ -102,8 +102,8 @@ func getPageList(pageNum int) ([]PageInfo, error) {
 }
 
 // 获取影片信息
-func getMovieInfo(censoredId int64) (*MovieInfo, error) {
-	url := fmt.Sprintf("https://www.11jav.xyz/prod-api/api/censored/%d", censoredId)
+func getMovieInfo(censoredId string) (*MovieInfo, error) {
+	url := fmt.Sprintf("https://www.11jav.xyz/prod-api/api/censored/%s", censoredId)
 	request, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		fmt.Println("get请求失败：", err)
@@ -228,7 +228,7 @@ func DownloadPhoto(pageInfoList []PageInfo) []PageInfo {
 		time.Sleep(time.Second * 3)
 		movieInfo, _ := getMovieInfo(pageInfo.CensoredId)
 
-		if len(movieInfo.Performer) == 1 {
+		if movieInfo != nil && len(movieInfo.Performer) == 1 {
 			pathName := fmt.Sprintf("%s\\%s-%s.jpg", photoDir, pageInfo.PubTime, pageInfo.Number)
 			//client := req.C()
 
@@ -241,7 +241,7 @@ func DownloadPhoto(pageInfoList []PageInfo) []PageInfo {
 					photoUrl = pageInfo.PicBig
 				}
 				if javErr := DownloadFile(photoUrl, pathName); javErr != nil {
-					fmt.Printf("\nF-%s-%d-%s-%d", pageInfo.Number, pageInfo.CensoredId, pageInfo.PicBig, len(movieInfo.Performer))
+					fmt.Printf("\nF-%s-%s-%s-%d", pageInfo.Number, pageInfo.CensoredId, pageInfo.PicBig, len(movieInfo.Performer))
 				} else {
 					fmt.Printf("\n%s-%s", pageInfo.PubTime, pageInfo.Number)
 					GetDownloadLink(pageInfo.Number, pathName)
@@ -259,9 +259,9 @@ func DownloadPhoto(pageInfoList []PageInfo) []PageInfo {
 }
 
 func main() {
-	flag.StringVar(&token, "token", "Bearer eyJhbGciOiJIUzUxMiJ9.eyJ3ZWJfbG9naW5fdXNlcl9rZXkiOiIzMmMzOTIwZS1hZTQ0LTQ1ZDUtODU5ZC0zZDk4NDczNjUwZDQifQ.qA_KQ6IYcaPJ8QkIJNb0wmNsVPtO9PpOy72fXQnZK-W1xVmebLhRTVG6QBAL3V76KvIO-_O-Wy4cl6Z5W9IggA", "login token")
+	flag.StringVar(&token, "token", "Bearer eyJhbGciOiJIUzUxMiJ9.eyJ3ZWJfbG9naW5fdXNlcl9rZXkiOiJhNDJiMjJjMC03OTRhLTQzOWYtOWJiZC1hMjY4MTNlZGU3ZGYifQ.dWShekEI9q6THolv2eUpXOXUuaZ0_EP0xP210k5-YhNfDMiWJwT_6N5sSHm7mCMy_8UQ0b2lWwTCLMEImd-apg", "login token")
 	// 演员ID
-	flag.Int64Var(&performerId, "performerId", 9503749401935941, "actress id")
+	flag.StringVar(&performerId, "performerId", "4429250322694214", "actress id")
 	// 截至日期
 	flag.StringVar(&dealLine, "date", "2000-01-01", "dead-line")
 	// 下载目录
